@@ -1,6 +1,6 @@
 # Waza Agent Guide
 
-> 全局规则在 `~/.claude/CLAUDE.md`。本文件只放仓库地图、Skill vs Script 判定、Skill Design Rules、Distribution Rules、Adding/Changing 流程、Verification、Commit And Release。
+This file is the canonical agent guide for the Waza repository. `CLAUDE.md` is a symlink to it, so Claude Code and Codex see identical content. Edit this file; do not edit `CLAUDE.md`.
 
 ## Project
 
@@ -19,7 +19,7 @@ Waza is a skill collection for engineering workflows. The repository contains ei
 - `packaging.allowlist` - default-deny list of paths that ship in `waza.zip`. New shippable assets must be added here explicitly; everything else is excluded.
 - `.github/workflows/` - public test and release automation. `release.yml` runs `make test` before `make package` so the tagged commit is gated by the same suite as PRs.
 - `scripts/build_metadata.py` - codegen for marketplace.json, README install URLs, and installer-script `WAZA_REF` defaults. Run via `make regenerate`; CI checks drift via `make verify-generated`.
-- `scripts/verify_skills.py` - frontmatter, reference, marketplace, resolver, link, and trigger-overlap validation. `scripts/verify-skills.sh` is a thin shell wrapper that adds a few grep checks (README install string, rule-file integrity, attribution leaks).
+- `scripts/verify_skills.py` - the only validator entrypoint. Covers frontmatter, references, marketplace, resolver, links, table pipes, trigger overlap, rule-file presence, README install string, English coaching guard, and AI-attribution leak detection.
 - `scripts/package-skill.sh` + `scripts/packaging_filter.py` - build `dist/waza.zip` from `packaging.allowlist`.
 - `scripts/setup-rule.sh` + `scripts/setup-statusline.sh` - public install helpers; `WAZA_REF` defaults are codegen-pinned to the current release tag.
 - `Makefile` - smoke discovery and packaging entrypoints. Adding a `tests/test_<name>.sh` file is enough to create a `smoke-<name>` target automatically.
@@ -36,7 +36,7 @@ make package          # build dist/waza.zip from packaging.allowlist
 
 Run `make test` before meaningful changes to skill behavior, packaging, scripts, marketplace metadata, or anything generated. If you edited only frontmatter or VERSION, also run `make regenerate` and commit the resulting `.claude-plugin/marketplace.json` / `README.md` / installer changes together with your source edits.
 
-## Skill Vs Script
+## Skill Design Rules
 
 Before adding a capability, decide the layer deliberately:
 
@@ -47,15 +47,11 @@ Before adding a capability, decide the layer deliberately:
 | Is it a lookup, list, status check, or invariant check? | Script or rule | Skill |
 | Does behavior shift with conversation context? | Skill | Script or rule |
 
-Examples: `verify-skills.sh` is a script; `rules/english.md` and `rules/chinese.md` are rules; `/think`, `/hunt`, `/check`, and `/health` are skills.
-
-- `rules/anti-patterns.md` owns cross-skill always-on behavioral guardrails (AI failure modes that apply regardless of active skill).
-- Per-skill gotchas stay in each `skills/*/SKILL.md` Gotchas table. A gotcha belongs in `rules/anti-patterns.md` only when it applies identically across all eight skills.
-
-## Skill Design Rules
+Examples: `verify_skills.py` is a script; `rules/english.md` and `rules/chinese.md` are rules; `/think`, `/hunt`, `/check`, and `/health` are skills.
 
 - Put adaptive, judgment-heavy workflows in skills.
 - Put deterministic checks, lookups, and table-driven validation in scripts.
+- `rules/anti-patterns.md` owns cross-skill always-on behavioral guardrails (AI failure modes that apply regardless of active skill). Per-skill gotchas stay in each `skills/*/SKILL.md` Gotchas table; a gotcha belongs in `rules/anti-patterns.md` only when it applies identically across all eight skills.
 - Keep `skills/RESOLVER.md` in sync when a skill description, trigger, or scope changes.
 - Keep each `description` concrete enough for automatic routing.
 - Avoid broad skills that mix unrelated workflows.
@@ -64,6 +60,7 @@ Examples: `verify-skills.sh` is a script; `rules/english.md` and `rules/chinese.
 - Waza `check` must remain project-aware without depending on unpublished local files. It extracts commands, generated artifacts, risk areas, and release rules from the target diff, public docs, manifests, CI config, and user-provided context.
 - Keep distribution files self-contained for Claude Desktop and plugin installs. The release ZIP may inline sub-skill bodies into a generated root `SKILL.md`; source-of-truth skill content remains under `skills/*/SKILL.md`.
 - If a `templates/` directory is added, keep reusable public scaffolds there and include it in packaging/validation rules deliberately.
+- Keep the README short: a new reader should understand Waza in 30 seconds. Detailed rules belong in `skills/<name>/SKILL.md`, `rules/*.md`, or this file. Do not stack promotional sections at the top.
 
 ## Adding Or Changing A Skill
 
@@ -99,9 +96,9 @@ Use this path for any new skill or meaningful behavior change:
 
 ## Verification
 
-- Skill behavior changes: run `./scripts/verify-skills.sh` and the relevant smoke target.
+- Skill behavior changes: run `python3 scripts/verify_skills.py` and the relevant smoke target.
 - Packaging changes: run `make package` and inspect the generated archive.
-- Marketplace, resolver, or root dispatcher changes: run `./scripts/verify-skills.sh` and confirm every marketplace source points at an existing skill directory.
+- Marketplace, resolver, or root dispatcher changes: run `python3 scripts/verify_skills.py` and confirm every marketplace source points at an existing skill directory.
 - Non-trivial diffs: run the review workflow before release handoff.
 - Documentation-only changes: check internal links and command names.
 
