@@ -25,11 +25,11 @@ URL_PREFIXES = ("http://", "https://", "mailto:", "ftp://", "tel:", "data:")
 SEP_RE = re.compile(r'^[\s|:\-]+$')
 PERSONAL_PATH_PATTERN = re.compile(r'/(?:Users|home)/[A-Za-z0-9._-]+/')
 SKILL_REF_RE = re.compile(r'skills/([a-z][a-z0-9_-]*)/SKILL\.md')
-PROJECT_SPECIFIC_NAME_RE = re.compile(r'\b(?:Mole|MiaoYan|Kami|Kaku|Pake)\b')
 PROJECT_RITUAL_RE = re.compile(r'\b(?:Sparkle|MAS|Homebrew tap|Xcode scheme)\b', re.IGNORECASE)
 PRIVATE_CONTEXT_RE = re.compile(
-    r'(?:mole-mac|MoleApp|tw93/Mole|\.codex/(?:sessions|memories)|'
-    r'rollout_summaries/|thread_id|rollout_path|session_meta|Dodo)',
+    r'(?:\.codex/(?:sessions|memories)|rollout_summaries/|'
+    r'thread_id|rollout_path|session_meta|owner/private-repo|'
+    r'private[-_/](?:repo|project|tool)|internal[-_/](?:repo|project|tool))',
     re.IGNORECASE,
 )
 FORCED_GITHUB_TOOL_RE = re.compile(
@@ -298,9 +298,9 @@ def check_durable_context_and_paths(root: Path, skill_files: list[Path]):
 def check_portable_skill_surface(root: Path, markdown_paths: list[Path]):
     """Guard Waza's public skill surface against private/project-specific drift.
 
-    Waza skills should teach transferable workflow behavior. Concrete project
-    names and product names are warning signals, while one-machine paths and
-    platform-forcing commands are hard portability failures.
+    Waza skills should teach transferable workflow behavior. Project-specific
+    release rituals and platform products are warning signals, while
+    one-machine paths and platform-forcing commands are hard portability failures.
     """
     scan_paths = list(markdown_paths)
     scan_paths.extend(sorted((root / "rules").glob("*.md")))
@@ -332,7 +332,7 @@ def check_portable_skill_surface(root: Path, markdown_paths: list[Path]):
                 f"  Public skills and rules must not copy private project names, session paths, "
                 f"memory paths, rollout metadata, support vendors, or thread identifiers."
             )
-        if PROJECT_SPECIFIC_NAME_RE.search(text) or PROJECT_RITUAL_RE.search(text):
+        if PROJECT_RITUAL_RE.search(text):
             warning_paths.append(rel.as_posix())
     if warning_paths:
         print(

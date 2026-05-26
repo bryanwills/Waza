@@ -55,11 +55,33 @@ DENYLIST_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 MINIFIED_RE = re.compile(r"\.min\.[a-z]+$", re.IGNORECASE)
-CLI_CONTRACT_RE = re.compile(
-    r"(--help|--version|\busage\b|exit code|exit status|return code|"
-    r"\bstdout\b|\bstderr\b|completion|non-interactive|tty|"
-    r"json|schema)",
-    re.IGNORECASE,
+CLI_CONTRACT_BUCKETS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("help_or_usage", re.compile(r"(--help|\busage\b|\bhelp output\b)", re.IGNORECASE)),
+    ("version", re.compile(r"(--version|\bversion output\b)", re.IGNORECASE)),
+    ("exit_code", re.compile(r"\b(exit code|exit status|return code|exit_code|\$\?)\b", re.IGNORECASE)),
+    ("stdout", re.compile(r"\b(stdout|standard output)\b|>\s*\"\$?[A-Za-z0-9_./-]*stdout", re.IGNORECASE)),
+    ("stderr", re.compile(r"\b(stderr|standard error)\b|2>\s*\"\$?[A-Za-z0-9_./-]*stderr", re.IGNORECASE)),
+    ("non_interactive_or_tty", re.compile(r"\b(non-interactive|noninteractive|tty|isatty|/dev/null|CI=1)\b", re.IGNORECASE)),
+    (
+        "install_run",
+        re.compile(
+            r"(\binstall\s+-m\b|\binstalled command\b|\binstalled-runtime\b|"
+            r"\binstall/run\b|\binstall run\b|\btemp prefix\b|\bPATH shim\b|"
+            r"\bpackage-manager path\b|\bnpm link\b|\bpipx install\b|"
+            r"\bcargo install\b|\bbrew install\b|\bmake install\b)",
+            re.IGNORECASE,
+        ),
+    ),
+    ("json_or_schema", re.compile(r"\b(json|schema)\b", re.IGNORECASE)),
+    ("completion", re.compile(r"\bcompletion\b", re.IGNORECASE)),
+)
+CLI_CORE_BUCKETS = (
+    "help_or_usage",
+    "version",
+    "exit_code",
+    "stdout",
+    "stderr",
+    "install_run",
 )
 
 
@@ -322,18 +344,19 @@ def _is_cli_contract_candidate(path: Path, root: Path) -> bool:
     return False
 
 
-def cli_contract_evidence(files: list[Path], root: Path) -> list[tuple[str, str]]:
-    hits: list[tuple[str, str]] = []
+def cli_contract_evidence(files: list[Path], root: Path) -> dict[str, list[tuple[str, str]]]:
+    hits: dict[str, list[tuple[str, str]]] = {}
     for path in files:
         if not _is_cli_contract_candidate(path, root):
             continue
         text = read_text(path, 200_000)
         if not text:
             continue
-        m = CLI_CONTRACT_RE.search(text)
-        if m:
-            hits.append((rel(path, root), m.group(1)))
-    return sorted(hits)
+        for bucket, pattern in CLI_CONTRACT_BUCKETS:
+            m = pattern.search(text)
+            if m:
+                hits.setdefault(bucket, []).append((rel(path, root), m.group(0)))
+    return {bucket: sorted(values) for bucket, values in sorted(hits.items())}
 
 
 def block_cli_contract_surface(files: list[Path], root: Path) -> None:
@@ -351,10 +374,20 @@ def block_cli_contract_surface(files: list[Path], root: Path) -> None:
         print(f"  ... {len(entries) - 12} more")
 
     evidence = cli_contract_evidence(files, root)
-    print(f"contract_evidence={len(evidence)}")
-    for path, signal in evidence[:10]:
-        print(f"  evidence: {path}  signal={signal}")
-    if evidence:
+    covered = tuple(bucket for bucket, _ in CLI_CONTRACT_BUCKETS if bucket in evidence)
+    missing = tuple(bucket for bucket in CLI_CORE_BUCKETS if bucket not in evidence)
+    print(f"covered={','.join(covered) if covered else 'none'}")
+    print(f"missing={','.join(missing) if missing else 'none'}")
+    printed = 0
+    for bucket in covered:
+        for path, signal in evidence[bucket][:3]:
+            print(f"  evidence: {bucket}  {path}  signal={signal}")
+            printed += 1
+            if printed >= 12:
+                break
+        if printed >= 12:
+            break
+    if not missing:
         status("PASS")
     else:
         status("WARN")

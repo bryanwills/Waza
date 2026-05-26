@@ -93,7 +93,7 @@ python3 -c "print('# big', *['line_'+str(i) for i in range(900)], sep='\n')" \
 # Python heredoc >100 lines in a shell script -> HEREDOC BLOAT WARN
 {
   echo '#!/bin/bash'
-  echo "python3 - <<'PY'"
+  echo "python3 - <""<'PY'"
   for _ in $(seq 1 130); do echo "x = 1"; done
   echo 'PY'
 } > "$dirty/scripts/run.sh"
@@ -145,7 +145,25 @@ cli_warn_out="$cli_warn/audit.out"
 python3 "$AUDIT" --root "$cli_warn" > "$cli_warn_out"
 assert_block_status "$cli_warn_out" "CLI CONTRACT SURFACE" "WARN"
 
-# Case 4: CLI entrypoint with help/version/stream/exit evidence -> PASS.
+# Case 4: CLI entrypoint with only partial contract coverage -> WARN.
+cli_partial=$(make_tmpdir)
+mkdir -p "$cli_partial/bin"
+cat > "$cli_partial/bin/examplecli" <<'SH'
+#!/usr/bin/env bash
+echo usage: examplecli
+SH
+chmod +x "$cli_partial/bin/examplecli"
+cat > "$cli_partial/README.md" <<'MD'
+# ExampleCLI
+
+Usage: examplecli --help
+MD
+
+cli_partial_out="$cli_partial/audit.out"
+python3 "$AUDIT" --root "$cli_partial" > "$cli_partial_out"
+assert_block_status "$cli_partial_out" "CLI CONTRACT SURFACE" "WARN"
+
+# Case 5: CLI entrypoint with help/version/stream/exit/install evidence -> PASS.
 cli_pass=$(make_tmpdir)
 mkdir -p "$cli_pass/bin" "$cli_pass/tests" "$cli_pass/.github/workflows"
 cat > "$cli_pass/bin/examplecli" <<'SH'
@@ -159,9 +177,16 @@ SH
 chmod +x "$cli_pass/bin/examplecli"
 cat > "$cli_pass/tests/test_cli.sh" <<'SH'
 #!/usr/bin/env bash
-examplecli --help
-examplecli --version
-# Contract checks cover exit code, stdout, stderr, and non-interactive mode.
+set -e
+tmpdir="$(mktemp -d)"
+install -m 755 bin/examplecli "$tmpdir/examplecli"
+PATH="$tmpdir:$PATH" examplecli --help >"$tmpdir/help.stdout" 2>"$tmpdir/help.stderr"
+exit_code=$?
+test "$exit_code" -eq 0
+grep -q "usage:" "$tmpdir/help.stdout"
+test ! -s "$tmpdir/help.stderr"
+CI=1 PATH="$tmpdir:$PATH" examplecli --version >"$tmpdir/version.stdout" 2>"$tmpdir/version.stderr" </dev/null
+grep -q "1.0.0" "$tmpdir/version.stdout"
 SH
 cat > "$cli_pass/.github/workflows/test.yml" <<'YAML'
 name: test

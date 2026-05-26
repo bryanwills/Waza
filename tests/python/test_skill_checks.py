@@ -149,15 +149,15 @@ def test_portable_skill_surface_rejects_forced_gh(tmp_path, capsys):
 @pytest.mark.parametrize(
     "private_context",
     [
-        "mole-mac",
-        "MoleApp",
-        "tw93/Mole",
         ".codex/sessions",
         ".codex/memories",
         "rollout_summaries/example.jsonl",
         "thread_id",
         "rollout_path",
-        "Dodo",
+        "session_meta",
+        "owner/private-repo",
+        "private-repo",
+        "internal-tool",
     ],
 )
 def test_portable_skill_surface_rejects_private_context(tmp_path, capsys, private_context):
@@ -170,10 +170,10 @@ def test_portable_skill_surface_rejects_private_context(tmp_path, capsys, privat
     assert "PRIVATE PROJECT OR SESSION CONTEXT" in capsys.readouterr().err
 
 
-def test_portable_skill_surface_warns_on_project_names(tmp_path, capsys):
+def test_portable_skill_surface_warns_on_project_rituals(tmp_path, capsys):
     path = tmp_path / "skills" / "write" / "SKILL.md"
     path.parent.mkdir(parents=True)
-    path.write_text("Use the Mole release flow as the default.\n")
+    path.write_text("Use the Homebrew tap release flow as the default.\n")
 
     check_portable_skill_surface(tmp_path, [path])
     out = capsys.readouterr().out
