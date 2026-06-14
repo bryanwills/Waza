@@ -88,6 +88,8 @@ Output the classification table first. Wait for the user to confirm the accepted
 
 Before proposing custom implementations, search for framework built-ins, official patterns, and ecosystem standards. Use Context7 MCP tools to query latest docs when available. If an official solution exists, it is the default recommendation unless you can articulate why it is insufficient for this specific case.
 
+For a hard problem, or one you have already tuned several times and it still feels off, study how mature open-source projects or direct competitors solve the same thing before designing. Fetch their approach, read the actual implementation, and extract the transferable mechanism. Designing from first principles when a proven implementation exists discards the iterations someone else already paid for. Name which projects you studied and what you took from each.
+
 ## Propose Approaches
 
 Give one recommended approach with rationale. Include effort, risk, and what existing code it builds on. Mention one alternative only if the tradeoff is genuinely close (>40% chance the user would prefer it). Always include one minimal option.
