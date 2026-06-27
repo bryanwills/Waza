@@ -37,8 +37,10 @@ required = {
     "README.md",
     "LICENSE",
     "rules/anti-patterns.md",
+    "scripts/check-update.sh",
     "scripts/statusline.sh",
     "skills/check/SKILL.md",
+    "skills/check/scripts/check-update.sh",
 }
 missing = sorted(required - files)
 if missing:
